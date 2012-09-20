@@ -802,10 +802,110 @@ Terminal.prototype.refresh = function(start, end) {
     attr = this.defAttr;
     i = 0;
 
+    // chunk line    
+    var chunks = line.reduce(function(chunks, ch, i) {
+      var last = chunks[chunks.length-1];
+      var data = (i===x) ? -1 : ch[0];
+      
+      if (data === last[0]) {
+        last[1] += ch[1];
+      } else {
+        chunks.push([x === 0 ? -1 : data, ch[1]])
+      }
+      
+      return chunks;
+    }, [[line[0][0], '']]);
+
+    // mark links
+    var chunks = chunks.reduce(function(chunks, ch) {
+      var data = ch[0];
+      var text = ch[1];
+      var splits = text.split(/(\bhttps?:\/\/(?:[\w\d]+\.)+\w{2,4})(:?:\d+)?(:?\/[\w\d]+)*\b/);
+      
+      if (splits.length === 1) {
+        chunks.push(ch);
+      } else {
+        while (i < splits.length) {
+          var noUrl = splits[i++];
+          var url = splits[i++];
+          
+          if (noUrl) {
+            chunks.push([data, noUrl]);
+          } 
+          
+          if (url) {
+            chunks.push([data, url, url]);
+          }
+        }
+      }
+      
+      return chunks;
+    }, []);
+    
+    // process per chunk
+    var out = '';
+    var defAttr = this.defAttr;
+    chunks.forEach(function(chunk) {
+      var data = chunk[0];
+      var text = chunk[1]
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/&/g, "&amp;")
+        .replace(/\s/g, "&nbsp;");
+        
+      if (chunk[2]) {
+        text = '<a href="' + chunk[2] + '" target="">' + text + '</a>';
+      }
+      
+      if (data === defAttr) {
+        out += text;
+        return;
+      }
+      
+      if (data == -1) {
+        out += '<span class="reverse-video">' + text + '</span>';
+      } else {
+        out += '<span style="';
+
+        bgColor = data & 0x1ff;
+        fgColor = (data >> 9) & 0x1ff;
+        flags = data >> 18;
+
+        if (flags & 1) {
+          if (!Terminal.brokenBold) {
+            out += 'font-weight:bold;';
+          }
+          // see: XTerm*boldColors
+          if (fgColor < 8) fgColor += 8;
+        }
+
+        if (flags & 2) {
+          out += 'text-decoration:underline;';
+        }
+
+        if (bgColor !== 256) {
+          out += 'background-color:'
+            + Terminal.colors[bgColor]
+            + ';';
+        }
+
+        if (fgColor !== 257) {
+          out += 'color:'
+            + Terminal.colors[fgColor]
+            + ';';
+        }
+
+        out += '">' + text + '' + '</span>';
+      }
+    });
+    //console.log(chunks[0][1])
+    //var text = line.reduce(function(str, ch) { return str + ch[1]; }, "");
+    //console.log(text);
+/*
     for (; i < width; i++) {
       data = line[i][0];
       ch = line[i][1];
-
+      
       if (i === x) data = -1;
 
       if (data !== attr) {
@@ -876,7 +976,7 @@ Terminal.prototype.refresh = function(start, end) {
     if (attr !== this.defAttr) {
       out += '</span>';
     }
-
+*/
     this.children[y].innerHTML = out;
   }
 
