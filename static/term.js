@@ -2138,7 +2138,9 @@ Terminal.prototype.keyDown = function(ev) {
     this.showCursor();
     this.handler(key);
 
-    return cancel(ev);
+    // don't prevent default for Meta-V to allow pasting
+    if (ev.keyCode !== 86)
+      return cancel(ev);
   }
 
   return true;
